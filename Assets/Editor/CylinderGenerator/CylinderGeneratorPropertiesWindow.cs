@@ -7,32 +7,61 @@ namespace Project.Editors.CylinderGenerator
     public class CylinderGeneratorPropertiesWindow : EditorWindow
     {
         private static MeshCollider _meshCollider;
-        private Cylinder _cylinder;
-        private CylinderPreviewScript _prewiewSample;
+        private static Cylinder _cylinder;
+        private static CylinderPreviewScript _prewiewSample;
+
+        private static MeshCollider Collider
+        {
+            get => _meshCollider;
+            set => _meshCollider = value;
+        }
         
         [MenuItem("CONTEXT/MeshCollider/Generate cylinder", false, 1)]
         private static void ShowWindow(MenuCommand command)
         {
-            _meshCollider = command.context as MeshCollider;
+            CheckAndDestroyInstances();
+            Collider = command.context as MeshCollider;
+            Initialize();
             
+            var icon = EditorGUIUtility.IconContent("d_MeshCollider Icon").image as Texture2D;
             var window = GetWindow<CylinderGeneratorPropertiesWindow>();
-            window.titleContent = new GUIContent("Cylinder generator");
+            window.titleContent = new GUIContent("Cylinder generator", icon);
             window.Show();
         }
+        
+        private static void CheckAndDestroyInstances()
+        {
+            if(_prewiewSample != null)
+                DestroyImmediate(_prewiewSample);
 
-        private void OnEnable()
+            _cylinder = default;
+        }
+    
+        private static void Initialize()
         {
             _cylinder = new Cylinder();
             CreatePreviewDummyObject();
         }
         
+        private static void CreatePreviewDummyObject()
+        {
+            if (_cylinder == null) return;
+
+            _prewiewSample = Collider.gameObject.AddComponent<CylinderPreviewScript>();
+            _prewiewSample.hideFlags = HideFlags.HideInInspector;
+            _prewiewSample.Init((Mesh) _cylinder);
+        }
+        
         private void OnDestroy()
         {
             DestroyImmediate(_prewiewSample);
+            _cylinder = default;
         }
         
         private void OnGUI()
         {
+            EditorGUILayout.Space(10);
+            EditorGUILayout.ObjectField("Целевой объект", Collider, typeof(MeshCollider), true);
             EditorGUILayout.Space(10);
             _cylinder.Radius = EditorGUILayout.FloatField("Радиус", _cylinder.Radius);
             _cylinder.Height = EditorGUILayout.FloatField("Высота", _cylinder.Height);
@@ -44,19 +73,9 @@ namespace Project.Editors.CylinderGenerator
  
             if (GUI.Button(buttonRect, "Сгенерировать"))
             {
-                _meshCollider.sharedMesh = (Mesh)_cylinder;
+                Collider.sharedMesh = (Mesh)_cylinder;
             }
         }
-
-        private void CreatePreviewDummyObject()
-        {
-            if (_cylinder == null) return;
-
-            _prewiewSample = _meshCollider.gameObject.AddComponent<CylinderPreviewScript>();
-            _prewiewSample.hideFlags = HideFlags.HideInInspector;
-            _prewiewSample.Init((Mesh) _cylinder);
-        }
-  
         
         private class CylinderPreviewScript : MonoBehaviour
         {
