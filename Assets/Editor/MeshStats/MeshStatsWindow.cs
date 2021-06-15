@@ -16,7 +16,7 @@ namespace Project.Editors.MeshStats
         private SearchField _searchField;
         private DataGridColumn<MeshInfo>[] _columns;
         private DataGrid<MeshInfo> _dataGrid;
-        
+
         [MenuItem("Tools/Open MeshStats window")]
         private static void ShowWindow()
         {
@@ -34,7 +34,6 @@ namespace Project.Editors.MeshStats
             EditorApplication.hierarchyChanged += () => _dataGrid.DataSource = GetMeshesFromScene();
             EditorSceneManager.sceneClosed += scene => _dataGrid.DataSource = Array.Empty<MeshInfo>();
         }
-        
         
         private void OnGUI()
         {
@@ -91,8 +90,24 @@ namespace Project.Editors.MeshStats
 
         private Rect DoToolbar()
         {
-            GUILayout.BeginHorizontal (EditorStyles.toolbar);
-            GUILayout.FlexibleSpace();
+            var toolbarStyle = new GUIStyle(EditorStyles.toolbar);
+            toolbarStyle.fixedHeight += 5;
+            
+            GUILayout.Space(5);
+            GUILayout.BeginHorizontal (toolbarStyle);
+            //GUILayout.FlexibleSpace();
+            GUILayout.Space(100);
+            _dataGrid.SearchColumnIndex = EditorGUILayout.Popup(
+                "Фильтровать по", 
+                _dataGrid.SearchColumnIndex + 1, 
+                _dataGrid.ColumnIndices.Keys.ToArray(),
+                new GUIStyle(EditorStyles.popup)
+                {
+                   
+                }) - 1;
+            
+            
+            GUILayout.Space(30);
             _dataGrid.SearchString = _searchField.OnToolbarGUI(_dataGrid.SearchString);
             GUILayout.EndHorizontal();
 

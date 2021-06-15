@@ -27,7 +27,7 @@ namespace Editor.MeshStats.Controls.DataGrid
         private MultiColumnHeader _multiColumnHeader;
         private MultiColumnHeaderState _multiColumnHeaderState;
         private DataGridColumn<T>[] _columns;
-        private T[] _dataSource;
+        private IList<T> _dataSource;
         
         private Rect _rect;
         private float _width;
@@ -35,14 +35,13 @@ namespace Editor.MeshStats.Controls.DataGrid
         private Vector2 _scrollPosition;
         private Rect _scrollViewArea;
         private string _searchString;
+        private int _searchColumnIndex = -1;
+        private Dictionary<string, int> _columnIndices;
         
         public DataGrid(DataGridColumn<T>[] columns, T[] dataSource)
         {
             _columns = columns;
-            _multiColumnHeaderState = new MultiColumnHeaderState(_columns);
-            _multiColumnHeader = new MultiColumnHeader(_multiColumnHeaderState);
             _dataSource = dataSource;
-            
             Initialize();
         }
 
@@ -51,7 +50,7 @@ namespace Editor.MeshStats.Controls.DataGrid
         public float HeaderHeight { get; set; } = EditorGUIUtility.singleLineHeight;
         public float ItemHeight { get; set; } = EditorGUIUtility.singleLineHeight;
         
-        public T[] DataSource
+        public IList<T> DataSource
         {
             get => _dataSource;
             set
@@ -60,13 +59,21 @@ namespace Editor.MeshStats.Controls.DataGrid
                 _multiColumnHeader.Repaint();
             }
         }
-        
+
+        public Dictionary<string, int> ColumnIndices => _columnIndices;
+
         public string SearchString
         {
             get => _searchString;
             set => _searchString = value;
         }
-        
+
+        public int SearchColumnIndex
+        {
+            get => _searchColumnIndex;
+            set => _searchColumnIndex = value;
+        }
+
         private bool HasSearch => !string.IsNullOrEmpty(_searchString);
         
         public void OnGUI(Rect position)
@@ -79,7 +86,7 @@ namespace Editor.MeshStats.Controls.DataGrid
             var viewRect = new Rect(_rect)
             {
                 xMax = _columns.Sum(column => column.width),
-                height = _dataSource.Length * ItemHeight
+                height = _dataSource.Count * ItemHeight
             };
             
             var columnRectPrototype = _rect;
@@ -91,14 +98,34 @@ namespace Editor.MeshStats.Controls.DataGrid
             }
             EndScroll();
         }
-
+        
+        private void Initialize()
+        {
+            _multiColumnHeaderState = new MultiColumnHeaderState(_columns);
+            _multiColumnHeader = new MultiColumnHeader(_multiColumnHeaderState);
+            _columnIndices = new Dictionary<string, int>();
+            _columnIndices.Add("Все", -1);
+            
+            for (int column = 0; column < _columns?.Length; column++)
+            {
+                _columns[column].autoResize = true;
+                _columns[column].canSort = true;
+                _columnIndices.Add(_columns[column].headerContent.text, column);
+            }
+            
+            _multiColumnHeader.visibleColumnsChanged += header => header.ResizeToFit();
+            _multiColumnHeader.sortingChanged += MultiColumnHeaderOnSortingChanged;
+            _multiColumnHeader.height = HeaderHeight;
+            _multiColumnHeader.ResizeToFit();
+        }
+        
         private void DrawData(Rect columnRect)
         {
             var rowRect = new Rect(columnRect);
             
             if (!HasSearch)
             {
-                for (int row = 0; row < _dataSource.Length; row++)
+                for (int row = 0; row < _dataSource.Count; row++)
                 {
                     rowRect.y = ItemHeight * (row + 1) + _rect.y;
                     DrawLineBackground(rowRect, row);
@@ -120,19 +147,6 @@ namespace Editor.MeshStats.Controls.DataGrid
                         DrawColumnItem(rowRect, column, indices[row]);
                 }
             }
-        }
-        
-        private void Initialize()
-        {
-            for (int column = 0; column < _columns?.Length; column++)
-            {
-                _columns[column].autoResize = true;
-                _columns[column].canSort = true;
-            }
-            
-            _multiColumnHeader.visibleColumnsChanged += header => header.ResizeToFit();
-            _multiColumnHeader.height = HeaderHeight;
-            _multiColumnHeader.ResizeToFit();
         }
         
         private void DrawHeader()
@@ -253,10 +267,18 @@ namespace Editor.MeshStats.Controls.DataGrid
         {
             var parsedData = ParseSearchString();
             var indices = new List<int>();
-
-            for (int row = 0; row < _dataSource.Length; row++)
+            int columnFilterFrom = 0;
+            int columnFilterTo = _columns.Length;
+            
+            if(_searchColumnIndex >= 0)
             {
-                for (int column = 0; column < _columns.Length; column++)
+                columnFilterFrom = _searchColumnIndex;
+                columnFilterTo = columnFilterFrom + 1;
+            }
+            
+            for (int row = 0; row < _dataSource.Count; row++)
+            {
+                for (int column = columnFilterFrom; column < columnFilterTo; column++)
                 {
                     if (parsedData.Keys.Contains("int"))
                     {
@@ -339,6 +361,44 @@ namespace Editor.MeshStats.Controls.DataGrid
             results.Add("string", _searchString);
             return results;
         }
+        
+        private void MultiColumnHeaderOnSortingChanged(MultiColumnHeader multicolumnheader)
+        {
+            int columnIndex = multicolumnheader.sortedColumnIndex;
+            bool sortedAscending = multicolumnheader.state.columns[columnIndex].sortedAscending;
+            var column = _columns[columnIndex];
+            var sortedList = new List<T>(DataSource);
+            
+            if (sortedAscending)
+            {
+                try
+                {
+                    sortedList.Sort( (x, y) => 
+                        Comparer<object>.Default.Compare(column.GetValue(x), column.GetValue(y)));
+                }
+                catch (Exception e)
+                {
+                    sortedList.Sort( (x, y) => 
+                        Comparer<string>.Default.Compare(column.GetValue(x).ToString(), column.GetValue(y).ToString()));
+                }
+            }
+            else
+            {
+                try
+                {
+                    sortedList.Sort( (x, y) => 
+                        Comparer<object>.Default.Compare(column.GetValue(y), column.GetValue(x)));
+                }
+                catch (Exception e)
+                {
+                    sortedList.Sort( (x, y) => 
+                        Comparer<string>.Default.Compare(column.GetValue(y).ToString(), column.GetValue(x).ToString()));
+                }
+            }
+            
+            DataSource = sortedList;
+        }
+
     }
     
     [Serializable]

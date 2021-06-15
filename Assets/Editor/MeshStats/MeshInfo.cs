@@ -10,16 +10,18 @@ namespace Project.Editors.MeshStats
         private MeshFilter _filter;
         private Mesh _mesh;
         private ModelImporter _modelImporter;
-
+        private int _polygons;
+        
         public MeshInfo(MeshFilter meshFilter, ModelImporter modelImporter)
         {
             _filter = meshFilter;
             _mesh = _filter.sharedMesh;
             _modelImporter = modelImporter;
             Count = 1;
+            _polygons = _mesh.triangles.Length / 3;
         }
-        
-        public MeshInfo(MeshFilter meshFilter, ModelImporter modelImporter, int count) 
+
+        public MeshInfo(MeshFilter meshFilter, ModelImporter modelImporter, int count)
             : this(meshFilter, modelImporter)
         {
             Count = count + 1;
@@ -33,7 +35,7 @@ namespace Project.Editors.MeshStats
         
         public int Vertices => _mesh.vertexCount;
         
-        public int Polygons => _mesh.triangles.Length / 3;
+        public int Polygons => _polygons;
 
         public int Count { get; }
         
@@ -57,6 +59,11 @@ namespace Project.Editors.MeshStats
                 EditorUtility.SetDirty(_modelImporter);
                 _modelImporter.generateSecondaryUV = value;
             }
+        }
+
+        public override string ToString()
+        {
+            return _mesh.name;
         }
     }
 }
