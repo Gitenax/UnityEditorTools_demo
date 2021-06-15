@@ -7,38 +7,88 @@ namespace Project.Editors.CylinderGenerator
     public class CylinderGeneratorPropertiesWindow : EditorWindow
     {
         private static MeshCollider _meshCollider;
-        private Cylinder _cylinder;
+        private static Cylinder _cylinder;
+        private static CylinderPreviewScript _prewiewSample;
+
+        private static MeshCollider Collider
+        {
+            get => _meshCollider;
+            set => _meshCollider = value;
+        }
         
         [MenuItem("CONTEXT/MeshCollider/Generate cylinder", false, 1)]
         private static void ShowWindow(MenuCommand command)
         {
-            _meshCollider = command.context as MeshCollider;
+            CheckAndDestroyInstances();
+            Collider = command.context as MeshCollider;
+            Initialize();
             
+            var icon = EditorGUIUtility.IconContent("d_MeshCollider Icon").image as Texture2D;
             var window = GetWindow<CylinderGeneratorPropertiesWindow>();
-            window.titleContent = new GUIContent("Cylinder generator");
+            window.titleContent = new GUIContent("Cylinder generator", icon);
             window.Show();
         }
+        
+        private static void CheckAndDestroyInstances()
+        {
+            if(_prewiewSample != null)
+                DestroyImmediate(_prewiewSample);
 
-        private void OnEnable()
+            _cylinder = default;
+        }
+    
+        private static void Initialize()
         {
             _cylinder = new Cylinder();
+            CreatePreviewDummyObject();
+        }
+        
+        private static void CreatePreviewDummyObject()
+        {
+            if (_cylinder == null) return;
+
+            _prewiewSample = Collider.gameObject.AddComponent<CylinderPreviewScript>();
+            _prewiewSample.hideFlags = HideFlags.HideInInspector;
+            _prewiewSample.Init((Mesh) _cylinder);
+        }
+        
+        private void OnDestroy()
+        {
+            DestroyImmediate(_prewiewSample);
+            _cylinder = default;
         }
         
         private void OnGUI()
         {
             EditorGUILayout.Space(10);
+            EditorGUILayout.ObjectField("Целевой объект", Collider, typeof(MeshCollider), true);
+            EditorGUILayout.Space(10);
             _cylinder.Radius = EditorGUILayout.FloatField("Радиус", _cylinder.Radius);
             _cylinder.Height = EditorGUILayout.FloatField("Высота", _cylinder.Height);
             _cylinder.Edges = EditorGUILayout.IntField("Граней", _cylinder.Edges);
-
             
             var buttonRect = new Rect(GUILayoutUtility.GetLastRect());
             buttonRect.y += EditorGUIUtility.singleLineHeight * 2;
             buttonRect.height = EditorGUIUtility.singleLineHeight * 2;
-            
+ 
             if (GUI.Button(buttonRect, "Сгенерировать"))
             {
-                _meshCollider.sharedMesh = _cylinder.GenerateMesh();
+                Collider.sharedMesh = (Mesh)_cylinder;
+            }
+        }
+        
+        private class CylinderPreviewScript : MonoBehaviour
+        {
+            private Mesh _gizmosMesh;
+            
+            public void Init(Mesh mesh) => _gizmosMesh = mesh;
+            
+            private void OnDrawGizmos()
+            {
+                if(_gizmosMesh == null) return;
+                Gizmos.color = Color.cyan;
+                Gizmos.DrawWireMesh(_gizmosMesh, transform.position, transform.rotation);
+                Gizmos.color = default;
             }
         }
     }
@@ -55,27 +105,53 @@ namespace Project.Editors.CylinderGenerator
         public Cylinder()
         {
             _mesh = new Mesh();
+            GenerateMesh();
         }
+
+        public static explicit operator Mesh(Cylinder cylinder) => cylinder._mesh;
         
         public float Radius
         {
             get => _radius;
-            set => _radius = value > 0 ? value : 0.01f;
+            set
+            {
+                if(PropertyValueChanged(_radius, value))
+                {
+                    _radius = value > 0 ? value : 0.01f;
+                    GenerateMesh();
+                }
+            }
         }
 
         public float Height
         {
             get => _height;
-            set => _height = value > 0 ? value : 0.01f;
+            set
+            {
+                if (PropertyValueChanged(_radius, value))
+                {
+                    _height = value > 0 ? value : 0.01f;
+                    GenerateMesh();
+                }
+            }
         }
 
         public int Edges
         {
             get => _edges;
-            set => _edges = value > 2 ? value : 3;
+            set
+            {
+                if (PropertyValueChanged(_radius, value))
+                {
+                    _edges = value > 2 ? value : 3;
+                    GenerateMesh();
+                }
+            }
         }
 
-        public Mesh GenerateMesh()
+        internal bool PropertyValueChanged<T>(T valueBefore, T valueAfter) => !valueBefore.Equals(valueAfter);
+        
+        private Mesh GenerateMesh()
         {
             // Получение величины угла для каждой грани
             _thetaStep = CalculateTheta(_edges);
